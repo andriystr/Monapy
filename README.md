@@ -168,9 +168,9 @@ for create this step need bind chain with corresponding structure of steps,
 or call corresponding class.
 From each step, one value is taken and pack into structure.
 ##### Pack in tuple
-It's like 'zip' function,
-if every step returns a value then those values ​​are packed into a tuple,
-otherwise no packing happens and values ​​aren't returned.
+> It's like 'zip' function,
+> if every step returns a value then those values ​​are packed into a tuple,
+> otherwise no packing happens and values ​​aren't returned.
 ##### Examples:
 ```python
 >>> from monapy import Step
