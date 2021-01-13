@@ -10,7 +10,7 @@ setuptools.setup(
     version='0.4.0',
     author='Andriy Stremeluk',
     author_email='astremeluk@gmail.com',
-    description='Python Library for build declarative tools',
+    description='Python Library to build declarative tools',
     long_description=long_description,
     long_description_content_type="text/markdown",
     license='MIT',

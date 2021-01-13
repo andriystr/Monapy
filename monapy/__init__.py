@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
 '''
-Python Library for build declarative tools.
+Python Library to build declarative tools.
 
 Binder - simple monad implementation.
     Binder is binding functions to chain.
-    The result of the previous function is passed to next function as positional argument.
-    Right arrows bind functions into chain.
+    The result of the previous function is passed to the next function as positional argument.
+    Right arrows bind functions into the chain.
     Left arrows set positional argument for last function in chain.
 Examples:
     >>> from monapy import Binder
@@ -23,12 +23,12 @@ Package Step
     Class Step must be implemented, method 'make' is main that take value and generate iterator.
     First step take value and generating iterator,
      that iteratively by one values is passed other step,
-     this process continue while to last step in the chain.
+     this process continue while to the last step in the chain.
     Bindings define which step the value is passed to.
     Steps may be bind by next bindings: bind, loop, or_bind.
 
 Bind
-    The values (in iterator) is passed to next step.
+    The values (in iterator) is passed to the next step.
 Examples:
     >>> from monapy import Step
     >>> chain1 = Step() >> Step()
@@ -37,8 +37,8 @@ Examples:
     >>> chain4 = Step() >> Step() >> Step()
 
 Loop
-    This bind make loop, first steps values (in iterator) is passed to second step and out of this chain,
-     second step by each value generate values (iterator),
+    This bind make loop, first step's values (in iterator) is passed to second step and out of this chain,
+     second step by each value is generating values (iterator),
      and this values is passed to first step, then all repeat until empty iterator from second step.
 (iter) --> value ------> First Step --> (iter) --> value ------>
                     ^                                       |
@@ -51,7 +51,7 @@ Examples:
     >>> chain3 = LoopStep( Step(), Step() )
 
 Or-Bind
-    It like 'or' logical expression, first non empty iterator is passed to out of this chain.
+    It like 'or' logical expression, a first non-empty iterator is passed to out of this chain.
 Examples:
     >>> from monapy import Step
     >>> chain1 = Step() | Step()
@@ -61,7 +61,7 @@ Examples:
 
 
 Internal structure of chain
-    For view how steps binded call 'tree' method and print result.
+    To view, how steps binded, call 'tree' method and print result.
 Examples:
     >>> chain = Step() >> ~( Step() >> Step() >> Step() ) << Step() >> ( Step() | Step() | Step() )
     >>> print( chain.tree() )
@@ -99,7 +99,7 @@ Detailed tree
 
 
 Combining steps
-    Sometimes need make separate chain, for this exists '~' expresion.
+    Sometimes need to make a separate sub-chain, for this exists '~' expression.
 Examples:
     >>> from monapy import Step
     >>> chain1 = ~( Step() >> Step() >> Step() ) << Step()
@@ -133,7 +133,7 @@ Show UnionStep in tree
        |_<< Step()
 
 
-Run chin
+Run chain
     For run chain call 'make' method, that return iterator.
 Examples:
     >>> from monapy import Step
@@ -148,8 +148,8 @@ Examples:
 Packing values in standard data structures
     4 structures supported: tuple, list, dict, set.
     Values pack the corresponding steps,
-     for create this step need bind chain with corresponding structure of steps,
-     or call corresponding class.
+     to create this step need bind the chain with corresponding structure of steps,
+     or call a corresponding class.
     From each step, one value is taken and pack into structure.
 Pack in tuple
     It's like 'zip' function,
@@ -191,7 +191,7 @@ Step class implementation
      This method takes one positional argument to get the value,
      and also accepts named arguments,
      that are used to pass settings for all steps in the chain.
-    Method 'make_all' is taking iterator of values that it passes to the 'make' method,
+    The method 'make_all' is taking an iterator of values that it passes to the 'make' method,
      it could be used for paralleling.
 '''
 
