@@ -1,12 +1,12 @@
 Monapy
 ===
 
-Python Library to build declarative tools.
+Python Library for build declarative tools.
 ---
 
 ### Binder - simple monad implementation.
 Binder is binding functions to chain.
-The result of the previous function is passed to the next function as positional argument.
+The result of the previous function is passed to a next function as positional argument.
 Right arrows bind functions into the chain.
 Left arrows set positional argument for last function in chain.
 ##### Examples:
@@ -27,7 +27,7 @@ First step take value and generating iterator,
 that iteratively by one values is passed other step,
 this process continue while to the last step in the chain.
 Bindings define which step the value is passed to.
-Steps may be bind by next bindings: bind, loop, or_bind.
+Steps may be bind by next binding methods: bind, loop_bind, or_bind.
 
 #### Bind
 The values (in iterator) is passed to the next step.
@@ -96,7 +96,7 @@ StepChain(3)
 StepChain(3)
    |__Step()
    |__LoopStep()
-   |     |__UnionStep()
+   |     |__UnitedSteps()
    |     |     |__StepChain(3)
    |     |            |__Step()
    |     |            |__Step()
@@ -135,11 +135,11 @@ StepChain(3)
           |_<< Step()
 ```
 
-#### Show UnionStep in tree
+#### Show UnitedSteps in tree
 ```python
 >>> print( chain1.tree( show_union=True ) )
 LoopStep()
-   |__UnionStep()
+   |__UnitedSteps()
    |     |__StepChain(3)
    |            |__Step()
    |            |__Step()

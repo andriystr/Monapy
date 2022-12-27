@@ -32,22 +32,22 @@ def to_step(step):
     elif isinstance(step, set):
         return SetStep(step)
     else:
-        raise TypeError('to_step(%s), supports only tuple, list, dict and set.' % type(step))
+        raise TypeError(f'to_step({type(step)}), supports only tuple, list, dict and set.')
 
 
 class Step:
     '''Abstract class must be implement'''
     def __repr__(self):
-        return '%s()' % self.__class__.__name__
+        return f'{self.__class__.__name__}()'
 
     def __rshift__(self, next_step):
         return self.bind(next_step)
 
-    def __lshift__(self, loop_step):
-        return self.loop(loop_step)
+    def __lshift__(self, step):
+        return self.loop_bind(step)
 
     def __invert__(self):
-        return self.union()
+        return self.unite_steps()
 
     def __or__(self, or_step):
         return self.or_bind(or_step)
@@ -59,11 +59,11 @@ class Step:
         '''Bind current step with other step'''
         return StepChain([self, next_step])
 
-    def loop(self, loop_step):
+    def loop_bind(self, step):
         '''Make Loop Step from current step and other step'''
-        return LoopStep(self, loop_step)
+        return LoopStep(self, step)
 
-    def union(self):
+    def unite_steps(self):
         '''Combining current steps'''
         return self
 
@@ -72,7 +72,7 @@ class Step:
         return OrChain([self, or_step])
 
     def _raw_tree(self, **kwargs):
-        return ['%s()' % self.__class__.__name__]
+        return [f'{self.__class__.__name__}()']
 
     def tree(self, **kwargs):
         '''Internal structure of chain'''
@@ -88,7 +88,7 @@ class Step:
 
     def make(self, value = object(), **kwargs):
         '''Main method of Step, must be implement'''
-        logger.warning('Calling %s.make' % self.__class__.__name__)
+        logger.warning(f'Calling {self.__class__.__name__}.make')
         return iter([])
 
 
@@ -100,30 +100,27 @@ class StepChain(Step):
         self._chain = list(map(to_step, steps))
 
     def __repr__(self):
-        s = ' >> '.join(map(repr, self._chain))
-        return '%s(%s)' % (self.__class__.__name__, s)
+        chain_repr = ' >> '.join(map(repr, self._chain))
+        return f'{self.__class__.__name__}({chain_repr})'
 
     def bind(self, next_step):
         '''Bind current step with other step'''
         self._chain.append(to_step(next_step))
         return self
 
-    def loop(self, loop_step):
+    def loop_bind(self, step):
         '''Make Loop Step from current step and other step'''
         last_step = self._chain.pop()
-        new_step = LoopStep(last_step, loop_step)
+        new_step = LoopStep(last_step, step)
         self._chain.append(new_step)
         return self
         
-    def union(self):
+    def unite_steps(self):
         '''Combining current steps'''
-        return UnionStep(self)
+        return UnitedSteps(self)
 
     def _raw_tree(self, **kwargs):
-        start_row = '%s(%s)' % (
-            self.__class__.__name__,
-            len(self._chain)
-        )
+        start_row = f'{self.__class__.__name__}({len(self._chain)})'
 
         rows = [start_row]
         if not self._chain:
@@ -139,20 +136,14 @@ class StepChain(Step):
 
         for step in chain:
             _rows = step._raw_tree(**kwargs)
-            rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
             if len(_rows) > 1:
-                rows.extend(
-                    '%s%s%s%s' % (spaces, sep, '  ', row)
-                    for row in _rows[1:]
-                )
-                rows.append('%s%s' % (spaces, sep))
+                rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+                rows.append(f'{spaces}{sep}')
 
         _rows = last_step._raw_tree(**kwargs)
-        rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
-        rows.extend(
-            '%s%s%s%s' % (spaces, ' ', spaces, row)
-            for row in _rows[1:]
-        )
+        rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
 
         return rows
 
@@ -175,24 +166,24 @@ class StepChain(Step):
 
 class LoopStep(Step):
     '''Step related from other steps by 'loop', it is implementing chain'''
-    def __init__(self, step, loop):
+    def __init__(self, step, loop_step):
         self._step = to_step(step)
-        self._loop_step = to_step(loop)
+        self._loop_step = to_step(loop_step)
 
     def __repr__(self):
-        s = '%s << %s' % (self._step, self._loop_step)
-        return '%s(%s)' % (self.__class__.__name__, s)
+        chain_repr = f'{self._step} << {self._loop_step}'
+        return f'{self.__class__.__name__}({chain_repr})'
 
     def bind(self, next_step):
         '''Bind current step with other step'''
         return StepChain([self, next_step])
         
-    def union(self):
+    def unite_steps(self):
         '''Combining current steps'''
-        return UnionStep(self)
+        return UnitedSteps(self)
 
     def _raw_tree(self, **kwargs):
-        start_row = '%s()' % self.__class__.__name__
+        start_row = f'{self.__class__.__name__}()'
 
         rows = [start_row]
 
@@ -205,23 +196,17 @@ class LoopStep(Step):
 
         step = self._step
         _rows = step._raw_tree(**kwargs)
-        rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
+        rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
         if len(_rows) > 1:
-            rows.extend(
-                '%s%s%s%s' % (spaces, sep, '  ', row)
-                for row in _rows[1:]
-            )
-            rows.append('%s%s' % (spaces, sep))
+            rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+            rows.append(f'{spaces}{sep}')
 
         _rows = last_step._raw_tree(**kwargs)
         if self._loop_step:
-            rows.append('%s%s%s%s' % (spaces, sep, '_<< ', _rows[0]))
+            rows.append(f'{spaces}{sep}_<< {_rows[0]}')
         else:
-            rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
-        rows.extend(
-            '%s%s%s%s' % (spaces, ' ', spaces, row)
-            for row in _rows[1:]
-        )
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
 
         return rows
 
@@ -254,16 +239,16 @@ class LoopStep(Step):
                 yield val
 
 
-class UnionStep(Step):
+class UnitedSteps(Step):
     def __init__(self, step):
         self._step = to_step(step)
 
     def __repr__(self):
-        return '%s(%s)' % (self.__class__.__name__, repr(self._step))
+        return f'{self.__class__.__name__}({repr(self._step)})'
 
     def _raw_tree(self, **kwargs):
-        if kwargs.get('full', False) or kwargs.get('show_union', False):
-            rows = ['%s()' % self.__class__.__name__]
+        if kwargs.get('full', False) or kwargs.get('show_united', False):
+            rows = [f'{self.__class__.__name__}()']
 
             center_pos = round(len(self.__class__.__name__) / 2)
             spaces = ' ' * (center_pos - 1)
@@ -271,12 +256,9 @@ class UnionStep(Step):
             sep = '|'
 
             _rows = self._step._raw_tree(**kwargs)
-            rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
             if len(_rows) > 1:
-                rows.extend(
-                    '%s%s%s%s' % (spaces, ' ', spaces, row)
-                    for row in _rows[1:]
-                )
+                rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
 
             return rows
         else:
@@ -284,7 +266,7 @@ class UnionStep(Step):
 
     def tree(self, **kwargs):
         '''Internal structure of chain'''
-        if kwargs.get('full', False) or kwargs.get('show_union', False):
+        if kwargs.get('full', False) or kwargs.get('show_united', False):
             return '\n'.join(self._raw_tree(**kwargs))
         else:
             return self._step.tree(**kwargs)
@@ -300,20 +282,20 @@ class OrChain(Step):
         self._chain = list(map(to_step, steps))
 
     def __repr__(self):
-        s = ' | '.join(map(repr, self._chain))
-        return '%s(%s)' % (self.__class__.__name__, s)
+        chain_repr = ' | '.join(map(repr, self._chain))
+        return f'{self.__class__.__name__}({chain_repr})'
 
     def or_bind(self, or_step):
         '''Make Or Step from current step and other step'''
         self._chain.append(to_step(or_step))
         return self
         
-    def union(self):
+    def unite_steps(self):
         '''Combining current steps'''
-        return UnionStep(self)
+        return UnitedSteps(self)
 
     def _raw_tree(self, **kwargs):
-        start_row = '%s(%s)' % (self.__class__.__name__, len(self._chain))
+        start_row = f'{self.__class__.__name__}({len(self._chain)})'
 
         rows = [start_row]
         if not self._chain:
@@ -329,20 +311,14 @@ class OrChain(Step):
 
         for step in chain:
             _rows = step._raw_tree(**kwargs)
-            rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
             if len(_rows) > 1:
-                rows.extend(
-                    '%s%s%s%s' % (spaces, sep, '  ', row)
-                    for row in _rows[1:]
-                )
-                rows.append('%s%s' % (spaces, sep))
+                rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+                rows.append(f'{spaces}{sep}')
 
         _rows = last_step._raw_tree(**kwargs)
-        rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
-        rows.extend(
-            '%s%s%s%s' % (spaces, ' ', spaces, row)
-            for row in _rows[1:]
-        )
+        rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
 
         return rows
 
@@ -358,9 +334,7 @@ class OrChain(Step):
             val = next(iterator, sentinel)
             if val is sentinel:
                 continue
-            # yield from chain([val], iterator)
-            for val in chain([val], iterator):
-                yield val
+            yield from chain([val], iterator)
             return
 
 
@@ -376,18 +350,11 @@ class TupleStep(Step):
                 raise TypeError('Must be tuple of steps')
 
     def __repr__(self):
-        return '%s((%s))' % (
-            self.__class__.__name__,
-            ', '.join(
-                (repr(s) for s in self._steps)
-            )
-        )
+        items_repr = ', '.join((repr(step) for step in self._steps))
+        return f'{self.__class__.__name__}(({items_repr}))'
 
     def _raw_tree(self, **kwargs):
-        start_row = '%s(%s)' % (
-            self.__class__.__name__,
-            len(self._steps)
-        )
+        start_row = f'{self.__class__.__name__}({len(self._steps)})'
 
         rows = [start_row]
         if not self._steps:
@@ -403,20 +370,14 @@ class TupleStep(Step):
 
         for step in chain:
             _rows = step._raw_tree(**kwargs)
-            rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
             if len(_rows) > 1:
-                rows.extend(
-                    '%s%s%s%s' % (spaces, sep, '  ', row)
-                    for row in _rows[1:]
-                )
-                rows.append('%s%s' % (spaces, sep))
+                rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+                rows.append(f'{spaces}{sep}')
 
         _rows = last_step._raw_tree(**kwargs)
-        rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
-        rows.extend(
-            '%s%s%s%s' % (spaces, ' ', spaces, row)
-            for row in _rows[1:]
-        )
+        rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
 
         return rows
 
@@ -445,18 +406,11 @@ class ListStep(Step):
                 raise TypeError('Must be list of steps')
 
     def __repr__(self):
-        return '%s([%s])' % (
-            self.__class__.__name__,
-            ', '.join(
-                (repr(s) for s in self._steps)
-            )
-        )
+        items_repr = ', '.join((repr(s) for s in self._steps))
+        return f'{self.__class__.__name__}([{items_repr}])'
 
     def _raw_tree(self, **kwargs):
-        start_row = '%s(%s)' % (
-            self.__class__.__name__,
-            len(self._steps)
-        )
+        start_row = f'{self.__class__.__name__}({len(self._steps)})'
 
         rows = [start_row]
         if not self._steps:
@@ -472,20 +426,14 @@ class ListStep(Step):
 
         for step in chain:
             _rows = step._raw_tree(**kwargs)
-            rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
             if len(_rows) > 1:
-                rows.extend(
-                    '%s%s%s%s' % (spaces, sep, '  ', row)
-                    for row in _rows[1:]
-                )
-                rows.append('%s%s' % (spaces, sep))
+                rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+                rows.append(f'{spaces}{sep}')
 
         _rows = last_step._raw_tree(**kwargs)
-        rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
-        rows.extend(
-            '%s%s%s%s' % (spaces, ' ', spaces, row)
-            for row in _rows[1:]
-        )
+        rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
 
         return rows
 
@@ -519,30 +467,19 @@ class DictStep(Step):
         self._steps = steps
 
         if not isinstance(steps, dict):
-            raise TypeError(
-                'Must be dict of steps: {key1: step, ... key2: step}'
-            )
+            raise TypeError('Must be dict of steps: {key1: step, ... key2: step}')
 
         for step in steps.values():
             if not isinstance(step, Step):
-                raise TypeError(
-                    'Must be dict of steps: {key1: step, ... key2: step}'
-                )
+                raise TypeError('Must be dict of steps: {key1: step, ... key2: step}')
 
     def __repr__(self):
-        return '%s({%s})' % (
-            self.__class__.__name__,
-            ', '.join(
-                '%s: %s' % (repr(key), repr(s))
-                for key, s in self._steps.items()
-            )
-        )
+        items_repr = ', '.join(f'{repr(key)}: {repr(s)}' for key, s in self._steps.items())
+        lbrace, rbrace = '{', '}'
+        return f'{self.__class__.__name__}({lbrace}{items_repr}{rbrace})'
 
     def _raw_tree(self, **kwargs):
-        start_row  = '%s(%s)' % (
-            self.__class__.__name__,
-            len(self._steps)
-        )
+        start_row  = f'{self.__class__.__name__}({len(self._steps)})'
         rows = [start_row]
         if not self._steps:
             return rows
@@ -559,27 +496,15 @@ class DictStep(Step):
 
         for key, step in chain:
             _rows = step._raw_tree(**kwargs)
-            rows.append(
-                '%s%s%s%s: %s' % 
-                (spaces,sep, unders, repr(key), _rows[0])
-            )
+            rows.append(f'{spaces}{sep}{unders}{repr(key)}: {_rows[0]}')
             if len(_rows) > 1:
-                rows.extend(
-                    '%s%s%s%s' % (spaces, sep, '  ', row)
-                    for row in _rows[1:]
-                )
-                rows.append('%s%s' % (spaces, sep))
+                rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+                rows.append(f'{spaces}{sep}')
 
         key = last_step[0]
         _rows = last_step[1]._raw_tree(**kwargs)
-        rows.append(
-            '%s%s%s%s: %s' % 
-            (spaces,sep, unders, repr(key), _rows[0])
-        )
-        rows.extend(
-            '%s%s%s%s' % (spaces, ' ', spaces, row)
-            for row in _rows[1:]
-        )
+        rows.append(f'{spaces}{sep}{unders}{repr(key)}: {_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
 
         return rows
 
@@ -623,19 +548,13 @@ class SetStep(Step):
                 raise TypeError('Must be set of steps')
 
     def __repr__(self):
-        return '%s({%s})' % (
-            self.__class__.__name__,
-            ', '.join(
-                (repr(s) for s in self._steps)
-            )
-        )
+        items_repr = ', '.join((repr(step) for step in self._steps))
+        lbrace, rbrace = '{', '}'
+        return f'{self.__class__.__name__}({lbrace}{items_repr}{rbrace})'
 
     def _raw_tree(self, **kwargs):
         steps = tuple(self._steps)
-        start_row = '%s(%s)' % (
-            self.__class__.__name__,
-            len(steps)
-        )
+        start_row = f'{self.__class__.__name__}({len(steps)})'
 
         rows = [start_row]
         if not steps:
@@ -651,20 +570,14 @@ class SetStep(Step):
 
         for step in chain:
             _rows = step._raw_tree(**kwargs)
-            rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
             if len(_rows) > 1:
-                rows.extend(
-                    '%s%s%s%s' % (spaces, sep, '  ', row)
-                    for row in _rows[1:]
-                )
-                rows.append('%s%s' % (spaces, sep))
+                rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+                rows.append(f'{spaces}{sep}')
 
         _rows = last_step._raw_tree(**kwargs)
-        rows.append('%s%s%s%s' % (spaces, sep, unders, _rows[0]))
-        rows.extend(
-            '%s%s%s%s' % (spaces, ' ', spaces, row)
-            for row in _rows[1:]
-        )
+        rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
 
         return rows
 
