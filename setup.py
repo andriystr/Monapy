@@ -7,10 +7,10 @@ with open('README.md') as f:
 
 setuptools.setup(
     name='monapy',
-    version='0.5.0',
+    version='0.6.0',
     author='Andriy Stremeluk',
     author_email='astremeluk@gmail.com',
-    description='Python Library for build declarative tools',
+    description='Python Library for declarative programming.',
     long_description=long_description,
     long_description_content_type="text/markdown",
     license='MIT',

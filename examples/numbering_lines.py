@@ -1,4 +1,5 @@
 from monapy import Step
+
 class Split(Step):
 	def __init__(self, char):
 		self._ch = char
@@ -13,12 +14,7 @@ class Numbering(Step):
 
 	def make(self, val, **kw):
 		self._num += 1
-		return [
-			''.join([
-				self._fmt % self._num,
-				val
-			])
-		]
+		return [''.join([self._fmt % self._num, val])]
 
 text = '''Python is an interpreted, high-level
 and general-purpose programming language.

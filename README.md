@@ -1,7 +1,7 @@
 Monapy
 ===
 
-Python Library for build declarative tools.
+Python Library for declarative programming.
 ---
 
 ### Binder - simple monad implementation.

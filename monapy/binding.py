@@ -21,8 +21,8 @@ class Binder:
         >>> binder( 10 )
         [0, 20, 40, 60, 80]
     '''
-    def __init__(self):
-        self._func_chain = []
+    def __init__(self, *functions):
+        self._func_chain = list(functions)
 
     def __rshift__(self, obj):
         ''' call to Binder.bind '''
@@ -38,31 +38,26 @@ class Binder:
 
     def bind(self, obj):
         ''' bind a function (callable object) with last function in the chain '''
-        if hasattr(obj, '__call__'):
-            self._func_chain.append(obj)
-        else:
+        if not hasattr(obj, '__call__'):
             raise TypeError('Must be callable')
-        return self
+
+        functions = self._func_chain[:]
+        functions.append(obj)
+        return Binder(*functions)
 
     def lbind(self, obj):
         ''' set positional argument for last function in the chain '''
-        _func = self._func_chain.pop()
-        self._func_chain.append(partial(_func, obj))
-        return self
+        functions = self._func_chain[:]
+        _func = functions.pop()
+        functions.append(partial(_func, obj))
+        return Binder(*functions)
 
     def call(self, *args, **kwargs):
         ''' call to functions chain '''
         if not self._func_chain:
-            if args:
-                return args[0]
-            else:
-                return
+            return
+        
         first_func = self._func_chain[0]
         other_funcs = self._func_chain[1:]
-        return reduce(
-            lambda val, func: func(val),
-            chain(
-                [first_func(*args, **kwargs)],
-                other_funcs
-            )
-        )
+        return reduce(lambda val, func: func(val),
+                      chain([first_func(*args, **kwargs)], other_funcs))

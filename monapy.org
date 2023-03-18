@@ -1,0 +1,1544 @@
+# -*- coding: utf-8; mode: org; mode: auto-fill; fill-column: 75; comment-column: 50; -*-
+# ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
+#+title: Monapy
+# ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
+:PROPERTIES:
+#+TODO: ➡ ✔ReadMe ✔tangle ✔Macro ✔Важно ✔Изучить ✔Прочитать ✔Скачать ✔Скопировать ✔ДоФорматировать ✔ ✔✔ ✔✔✔ »
+#+STARTUP: content _showall _hidestars indent _hideblocks inlineimages _fold
+:END:
+
+
+* :: Monapy
+** :: *Version*
+
+#+name: version
+#+begin_src text
+0.6.0
+#+end_src
+
+** :: *Library description*
+
+#+name: description
+#+begin_src text
+Python Library for declarative programming.
+#+end_src
+
+** :: *Copyright*
+
+#+name: copyright
+#+begin_src text
+Copyright © 2020-2023 Andriy Stremeluk
+#+end_src
+
+** ✔tangle :: examples
+*** ✔tangle :: *numbering_lines.py*
+
+#+begin_src python :tangle examples/numbering_lines.py :mkdirp yes
+
+from monapy import Step
+
+class Split(Step):
+	def __init__(self, char):
+		self._ch = char
+
+	def make(self, val, **kw):
+		return val.split(self._ch)
+
+class Numbering(Step):
+	def __init__(self, fmt):
+		self._fmt = fmt
+		self._num = 0
+
+	def make(self, val, **kw):
+		self._num += 1
+		return [''.join([self._fmt % self._num, val])]
+
+text = '''Python is an interpreted, high-level
+and general-purpose programming language.
+Python's design philosophy emphasizes
+code readability with its notable use of
+significant whitespace. Its language
+constructs and object-oriented approach
+aim to help programmers write clear,
+logical code for small and large-scale
+projects.
+'''
+
+chain = Split('\n') >> Numbering('%d. ')
+print(*chain(text), sep='\n')
+
+# Result:
+# 1. Python is an interpreted, high-level
+# 2. and general-purpose programming language.
+# 3. Python's design philosophy emphasizes
+# 4. code readability with its notable use of
+# 5. significant whitespace. Its language
+# 6. constructs and object-oriented approach
+# 7. aim to help programmers write clear,
+# 8. logical code for small and large-scale
+# 9. projects.
+# 10.
+
+#+end_src
+
+** ✔tangle :: monapy
+*** ✔tangle :: step
+**** ✔tangle :: *__init__.py*
+
+#+begin_src python :tangle monapy/step/__init__.py :mkdirp yes
+
+# -*- coding: utf-8 -*-
+
+'''
+### Package Step
+Step is a functional unit, a step is binding with other step for making chain steps.
+Class Step must be implemented, method 'make' is main that take value and generate iterator.
+First step take value and generating iterator,
+that iteratively by one values is passed other step,
+this process continue while to the last step in the chain.
+Bindings define which step the value is passed to.
+Steps may be bind by next binding methods: bind, loop_bind, or_bind.
+
+#### Bind
+The values (in iterator) is passed to the next step.
+##### Examples:
+    >>> from monapy import Step
+    >>> chain1 = Step() >> Step()
+    >>> chain2 = Step().bind( Step() )
+    >>> chain3 = StepChain( [ Step(), Step() ] )
+    >>> chain4 = Step() >> Step() >> Step()
+
+#### Loop
+This bind make loop, first step's values (in iterator) is passed to second step and out of this chain,
+second step by each value is generating values (iterator),
+and this values is passed to first step, then all repeat until empty iterator from second step.
+
+(iter) --> value ------> First Step --> (iter) --> value ------>
+                    ^                                       |
+                    |                                       |
+                     -- value <-- (iter) <-- Second Step <--
+
+##### Examples:
+    >>> from monapy import Step
+    >>> chain1 = Step() << Step()
+    >>> chain2 = Step().loop( Step() )
+    >>> chain3 = LoopStep( Step(), Step() )
+
+#### Or-Bind
+It like 'or' logical expression, a first non-empty iterator is passed to out of this chain.
+##### Examples:
+    >>> from monapy import Step
+    >>> chain1 = Step() | Step()
+    >>> chain2 = Step().or_bind( Step() )
+    >>> chain3 = OrChain( [ Step(), Step() ] )
+    >>> chain4 = Step() | Step() | Step()
+
+#### Internal structure of chain
+To view, how steps binded, call 'tree' method and print result.
+##### Examples:
+    >>> chain = Step() >> ~( Step() >> Step() >> Step() ) << Step() >> ( Step() | Step() | Step() )
+    >>> print( chain.tree() )
+    StepChain(3)
+       |__Step()
+       |__LoopStep()
+       |     |__StepChain(3)
+       |     |     |__Step()
+       |     |     |__Step()
+       |     |     |__Step()
+       |     |
+       |     |_<< Step()
+       |
+       |__OrChain(3)
+              |__Step()
+              |__Step()
+              |__Step()
+
+##### Detailed tree
+    >>> print( chain.tree( full=True ) )
+    StepChain(3)
+       |__Step()
+       |__LoopStep()
+       |     |__UnitedSteps()
+       |     |     |__StepChain(3)
+       |     |            |__Step()
+       |     |            |__Step()
+       |     |            |__Step()
+       |     |
+       |     |_<< Step()
+       |
+       |__OrChain(3)
+              |__Step()
+              |__Step()
+              |__Step()
+
+#### Combining steps
+Sometimes need to make a separate sub-chain, for this exists '~' expression.
+##### Examples:
+    >>> from monapy import Step
+    >>> chain1 = ~( Step() >> Step() >> Step() ) << Step()
+    >>> print( chain1.tree() )
+    LoopStep()
+       |__StepChain(3)
+       |     |__Step()
+       |     |__Step()
+       |     |__Step()
+       |
+       |_<< Step()
+
+    >>> chain2 = Step() >> Step() >> Step() << Step()
+    >>> print( chain2.tree() )
+    StepChain(3)
+       |__Step()
+       |__Step()
+       |__LoopStep()
+              |__Step()
+              |_<< Step()
+
+#### Show UnitedSteps in tree
+    >>> print( chain1.tree( show_united=True ) )
+    LoopStep()
+       |__UnitedSteps()
+       |     |__StepChain(3)
+       |            |__Step()
+       |            |__Step()
+       |            |__Step()
+       |
+       |_<< Step()
+
+#### Run chain
+For run chain call 'make' method, that return iterator.
+##### Examples:
+    >>> from monapy import Step
+    >>> chain = Step() >> Step() << Step() >> ( Step() | Step() | Step() )
+    >>> for val in chain.make( value ):
+    >>>     print( val )
+
+    >>> for val in chain( value ):
+    >>>     print( val )
+
+#### Packing values in standard data structures
+4 structures supported: tuple, list, dict, set.
+Values pack the corresponding steps,
+to create this step need bind the chain with corresponding structure of steps,
+or call a corresponding class.
+From each step, one value is taken and pack into structure.
+##### Pack in tuple
+> It's like 'zip' function,
+> if every step returns a value then those values ​​are packed into a tuple,
+> otherwise no packing happens and values ​​aren't returned.
+##### Examples:
+    >>> from monapy import Step
+    >>> chain1 = Step() >> ( Step(), Step(), Step() )
+    >>> chain2 = TupleStep( ( Step(), Step(), Step() ) )
+    >>> chain3 = to_step( ( Step(), Step(), Step() ) )
+
+##### Pack in list
+##### Examples:
+    >>> from monapy import Step
+    >>> chain1 = Step() >> [ Step(), Step(), Step() ]
+    >>> chain2 = ListStep( [ Step(), Step(), Step() ] )
+    >>> chain3 = to_step( [ Step(), Step(), Step() ] )
+
+##### Pack in dict
+##### Examples:
+    >>> from monapy import Step
+    >>> chain1 = Step() >> { 'key1': Step(), 'key2': Step(), 'key3': Step() }
+    >>> chain2 = DictStep( { 'key1': Step(), 'key2': Step(), 'key3': Step() } )
+    >>> chain3 = to_step( { 'key1': Step(), 'key2': Step(), 'key3': Step() } )
+
+##### Pack in set
+##### Examples:
+    >>> from monapy import Step
+    >>> chain1 = Step() >> { Step(), Step(), Step() }
+    >>> chain2 = SetStep( { Step(), Step(), Step() } )
+    >>> chain3 = to_step( { Step(), Step(), Step() } )
+
+#### Step class implementation
+Class Step has two methods to implement,
+it's 'make' and 'make_all'.
+The 'make' method takes a value and generates an iterator,
+that is passed to the next step.
+This method takes one positional argument to get the value,
+and also accepts named arguments,
+that are used to pass settings for all steps in the chain.
+The method 'make_all' is taking an iterator of values that it passes to the 'make' method,
+it could be used for paralleling.
+'''
+
+from .core import Step
+
+__all__ = ['Step']
+
+#+end_src
+
+**** ✔tangle :: *core.py*
+***** ✔tangle :: Build *core.py*
+
+#+begin_src python :noweb yes :tangle monapy/step/core.py :mkdirp yes
+
+<<step-imports>>
+<<step-logger>>
+<<to_step>>
+<<class-step>>
+<<class-step-chain>>
+<<class-loop-step>>
+<<class-united-steps>>
+<<class-or-chain>>
+<<class-tuple-step>>
+<<class-list-step>>
+<<class-dict-step>>
+<<class-set-step>>
+
+#+end_src
+
+***** :: *Imports*
+
+#+name: step-imports
+#+begin_src python
+
+# -*- coding: utf-8 -*-
+
+''' Foundation for creating declarative programming tools '''
+
+import logging
+
+from itertools import chain
+from functools import reduce
+from itertools import tee
+
+#+end_src
+
+***** :: *Logger*
+
+#+name: step-logger
+#+begin_src python
+
+logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+fmt = logging.Formatter('%(name)s:line %(lineno)s:%(asctime)s:%(message)s')
+handler.setFormatter(fmt)
+logger.addHandler(handler)
+logger.setLevel(logging.WARNING)
+
+#+end_src
+
+***** :: func: *to_step(step)*
+
+#+name: to_step
+#+begin_src python
+
+def to_step(step):
+    '''
+    Convert data structure to corresponding Step.
+    '''
+    if isinstance(step, Step):
+        return step
+    elif isinstance(step, tuple):
+        return TupleStep(step)
+    elif isinstance(step, list):
+        return ListStep(step)
+    elif isinstance(step, dict):
+        return DictStep(step)
+    elif isinstance(step, set):
+        return SetStep(step)
+    else:
+        raise TypeError(f'to_step({type(step)}), supports only tuple, list, dict and set.')
+
+#+end_src
+
+***** :: class: *Step*
+
+#+name: class-step
+#+begin_src python
+
+class Step:
+    '''Abstract class must be implement'''
+    def __repr__(self):
+        return f'{self.__class__.__name__}()'
+
+    def __rshift__(self, next_step):
+        return self.bind(next_step)
+
+    def __lshift__(self, step):
+        return self.loop_bind(step)
+
+    def __invert__(self):
+        return self.unite_steps()
+
+    def __or__(self, or_step):
+        return self.or_bind(or_step)
+
+    def __call__(self, value = object(), **kwargs):
+        return self.make(value, **kwargs)
+
+    def bind(self, next_step):
+        '''Bind current step with other step'''
+        return StepChain([self, next_step])
+
+    def loop_bind(self, step):
+        '''Make Loop Step from current step and other step'''
+        return LoopStep(self, step)
+
+    def unite_steps(self):
+        '''Combining current steps'''
+        return self
+
+    def or_bind(self, or_step):
+        '''Make Or Step from current step and other step'''
+        return OrChain([self, or_step])
+
+    def _raw_tree(self, **kwargs):
+        return [f'{self.__class__.__name__}()']
+
+    def get_str_tree(self, **kwargs):
+        '''Internal structure of chain'''
+        return '\n'.join(self._raw_tree(**kwargs))
+
+    def make_all(self, iterable, **kwargs):
+        '''Method must be implement'''
+        return (value
+                for val in iterable
+                for value in self.make(val, **kwargs))
+
+    def make(self, value = object(), **kwargs):
+        '''Main method of Step, must be implement'''
+        logger.warning(f'Calling {self.__class__.__name__}.make')
+        return iter([])
+
+#+end_src
+
+***** :: class: *StepChain(Step)*
+
+#+name: class-step-chain
+#+begin_src python
+
+class StepChain(Step):
+    '''Step related from other steps by 'bind', it is implementing chain'''
+    def __init__(self, steps):
+        if not steps:
+            raise ValueError('steps is empty')
+        self._chain = list(map(to_step, steps))
+
+    def __repr__(self):
+        chain_repr = ' >> '.join(map(repr, self._chain))
+        return f'{self.__class__.__name__}({chain_repr})'
+
+    def bind(self, next_step):
+        '''Bind current step with other step'''
+        self._chain.append(to_step(next_step))
+        return self
+
+    def loop_bind(self, step):
+        '''Make Loop Step from current step and other step'''
+        last_step = self._chain.pop()
+        new_step = LoopStep(last_step, step)
+        self._chain.append(new_step)
+        return self
+        
+    def unite_steps(self):
+        '''Combining current steps'''
+        return UnitedSteps(self)
+
+    def _raw_tree(self, **kwargs):
+        start_row = f'{self.__class__.__name__}({len(self._chain)})'
+
+        rows = [start_row]
+        if not self._chain:
+            return rows
+
+        last_step = self._chain[-1]
+        chain = self._chain[:-1]
+
+        center_pos = round(len(self.__class__.__name__) / 2)
+        spaces = ' ' * (center_pos - 1)
+        unders = '__'
+        sep = '|'
+
+        for step in chain:
+            _rows = step._raw_tree(**kwargs)
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+            if len(_rows) > 1:
+                rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+                rows.append(f'{spaces}{sep}')
+
+        _rows = last_step._raw_tree(**kwargs)
+        rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
+
+        return rows
+
+    def get_str_tree(self, **kwargs):
+        '''Internal structure of chain'''
+        return '\n'.join(self._raw_tree(**kwargs))
+
+    def make(self, value = object(), **kwargs):
+        '''Main method of Step'''
+        if not self._chain:
+            return
+
+        yield from reduce(lambda iterable, step: step.make_all(iterable, **kwargs),
+                          chain([[value]], self._chain))
+
+#+end_src
+
+***** :: class: *LoopStep(Step)*
+
+#+name: class-loop-step
+#+begin_src python
+
+class LoopStep(Step):
+    '''Step related from other steps by 'loop', it is implementing chain'''
+    def __init__(self, step, loop_step):
+        self._step = to_step(step)
+        self._loop_step = to_step(loop_step)
+
+    def __repr__(self):
+        chain_repr = f'{self._step} << {self._loop_step}'
+        return f'{self.__class__.__name__}({chain_repr})'
+
+    def bind(self, next_step):
+        '''Bind current step with other step'''
+        return StepChain([self, next_step])
+        
+    def unite_steps(self):
+        '''Combining current steps'''
+        return UnitedSteps(self)
+
+    def _raw_tree(self, **kwargs):
+        start_row = f'{self.__class__.__name__}()'
+
+        rows = [start_row]
+
+        last_step = self._loop_step
+
+        center_pos = round(len(self.__class__.__name__) / 2)
+        spaces = ' ' * (center_pos - 1)
+        unders = '__'
+        sep = '|'
+
+        step = self._step
+        _rows = step._raw_tree(**kwargs)
+        rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        if len(_rows) > 1:
+            rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+            rows.append(f'{spaces}{sep}')
+
+        _rows = last_step._raw_tree(**kwargs)
+        if self._loop_step:
+            rows.append(f'{spaces}{sep}_<< {_rows[0]}')
+        else:
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
+
+        return rows
+
+    def get_str_tree(self, **kwargs):
+        '''Internal structure of chain'''
+        return '\n'.join(self._raw_tree(**kwargs))
+
+    def make(self, value = object(), **kwargs):
+        '''Main method of Step'''
+        iterable = self._step.make(value, **kwargs)
+
+        result, iterable = tee(iterable, 2)
+        for val in result:
+            yield val
+
+        while True:
+            iterable = reduce(lambda iterable, step: step.make_all(iterable, **kwargs),
+                              chain([iterable], [self._loop_step, self._step]))
+
+            sentinel = object()
+            value = next(iterable, sentinel)
+            iterable = chain([value], iterable)
+            if value is sentinel:
+                return
+
+            result, iterable = tee(iterable, 2)
+            yield from result
+
+#+end_src
+
+***** :: class: *UnitedSteps(Step)*
+
+#+name: class-united-steps
+#+begin_src python
+
+class UnitedSteps(Step):
+    def __init__(self, step):
+        self._step = to_step(step)
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({repr(self._step)})'
+
+    def _raw_tree(self, **kwargs):
+        if kwargs.get('full', False) or kwargs.get('show_united', False):
+            rows = [f'{self.__class__.__name__}()']
+
+            center_pos = round(len(self.__class__.__name__) / 2)
+            spaces = ' ' * (center_pos - 1)
+            unders = '__'
+            sep = '|'
+
+            _rows = self._step._raw_tree(**kwargs)
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+            if len(_rows) > 1:
+                rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
+
+            return rows
+        else:
+            return self._step._raw_tree(**kwargs)
+
+    def get_str_tree(self, **kwargs):
+        '''Internal structure of chain'''
+        if kwargs.get('full', False) or kwargs.get('show_united', False):
+            return '\n'.join(self._raw_tree(**kwargs))
+        else:
+            return self._step.tree(**kwargs)
+
+    def make(self, value, **kwargs):
+        '''Main method of Step'''
+        return self._step.make(value, **kwargs)
+
+#+end_src
+
+***** :: class: *OrChain(Step)*
+
+#+name: class-or-chain
+#+begin_src python
+
+class OrChain(Step):
+    '''Step related from other steps by 'or_bind', it is implementing chain'''
+    def __init__(self, steps):
+        self._chain = list(map(to_step, steps))
+
+    def __repr__(self):
+        chain_repr = ' | '.join(map(repr, self._chain))
+        return f'{self.__class__.__name__}({chain_repr})'
+
+    def or_bind(self, or_step):
+        '''Make Or Step from current step and other step'''
+        self._chain.append(to_step(or_step))
+        return self
+        
+    def unite_steps(self):
+        '''Combining current steps'''
+        return UnitedSteps(self)
+
+    def _raw_tree(self, **kwargs):
+        start_row = f'{self.__class__.__name__}({len(self._chain)})'
+
+        rows = [start_row]
+        if not self._chain:
+            return rows
+
+        last_step = self._chain[-1]
+        chain = self._chain[:-1]
+
+        center_pos = round(len(self.__class__.__name__) / 2)
+        spaces = ' ' * (center_pos - 1)
+        unders = '__'
+        sep = '|'
+
+        for step in chain:
+            _rows = step._raw_tree(**kwargs)
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+            if len(_rows) > 1:
+                rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+                rows.append(f'{spaces}{sep}')
+
+        _rows = last_step._raw_tree(**kwargs)
+        rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
+
+        return rows
+
+    def get_str_tree(self, **kwargs):
+        '''Internal structure of chain'''
+        return '\n'.join(self._raw_tree(**kwargs))
+
+    def make(self, value = object(), **kwargs):
+        '''Main method of Step'''
+        for step in self._chain:
+            iterator = iter(step.make(value, **kwargs))
+            sentinel = object()
+            val = next(iterator, sentinel)
+            if val is sentinel:
+                continue
+            yield from chain([val], iterator)
+            return
+
+#+end_src
+
+***** :: class: *TupleStep(Step)*
+
+#+name: class-tuple-step
+#+begin_src python
+
+class TupleStep(Step):
+    def __init__(self, steps):
+        self._steps = steps
+
+        if not isinstance(steps, tuple):
+            raise TypeError('Must be tuple of Steps')
+
+        for step in steps:
+            if not isinstance(step, Step):
+                raise TypeError('Must be tuple of steps')
+
+    def __repr__(self):
+        items_repr = ', '.join((repr(step) for step in self._steps))
+        return f'{self.__class__.__name__}(({items_repr}))'
+
+    def _raw_tree(self, **kwargs):
+        start_row = f'{self.__class__.__name__}({len(self._steps)})'
+
+        rows = [start_row]
+        if not self._steps:
+            return rows
+
+        last_step = self._steps[-1]
+        chain = self._steps[:-1]
+
+        center_pos = round(len(self.__class__.__name__) / 2)
+        spaces = ' ' * (center_pos - 1)
+        unders = '__'
+        sep = '|'
+
+        for step in chain:
+            _rows = step._raw_tree(**kwargs)
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+            if len(_rows) > 1:
+                rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+                rows.append(f'{spaces}{sep}')
+
+        _rows = last_step._raw_tree(**kwargs)
+        rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
+
+        return rows
+
+    def get_str_tree(self, **kwargs):
+        '''Internal structure of chain'''
+        return '\n'.join(self._raw_tree(**kwargs))
+
+    def make(self, value, **kwargs):
+        '''Main method of Step'''
+        iterables = tuple(iter(step.make(value, **kwargs))
+                          for step in self._steps)
+        
+        return (tuple(it) for it in zip(*iterables))
+
+#+end_src
+
+***** :: class: *ListStep(Step)*
+
+#+name: class-list-step
+#+begin_src python
+
+class ListStep(Step):
+    def __init__(self, steps):
+        self._steps = steps
+
+        if not isinstance(steps, list):
+            raise TypeError('Must be list of steps')
+
+        for step in steps:
+            if not isinstance(step, Step):
+                raise TypeError('Must be list of steps')
+
+    def __repr__(self):
+        items_repr = ', '.join((repr(s) for s in self._steps))
+        return f'{self.__class__.__name__}([{items_repr}])'
+
+    def _raw_tree(self, **kwargs):
+        start_row = f'{self.__class__.__name__}({len(self._steps)})'
+
+        rows = [start_row]
+        if not self._steps:
+            return rows
+
+        last_step = self._steps[-1]
+        chain = self._steps[:-1]
+
+        center_pos = round(len(self.__class__.__name__) / 2)
+        spaces = ' ' * (center_pos - 1)
+        unders = '__'
+        sep = '|'
+
+        for step in chain:
+            _rows = step._raw_tree(**kwargs)
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+            if len(_rows) > 1:
+                rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+                rows.append(f'{spaces}{sep}')
+
+        _rows = last_step._raw_tree(**kwargs)
+        rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
+
+        return rows
+
+    def get_str_tree(self, **kwargs):
+        '''Internal structure of chain'''
+        return '\n'.join(self._raw_tree(**kwargs))
+
+    def make(self, value, **kwargs):
+        '''Main method of Step'''
+        iterables = tuple(iter(step.make(value, **kwargs))
+                          for step in self._steps)
+
+        sentinel = object()
+        while True:
+            result_list = [val
+                           for val in (next(it, sentinel) for it in iterables)
+                           if val is not sentinel]
+            
+            if len(result_list) > 0:
+                yield result_list
+            else:
+                return
+
+#+end_src
+
+***** :: class: *DictStep(Step)*
+
+#+name: class-dict-step
+#+begin_src python
+
+class DictStep(Step):
+    def __init__(self, steps):
+        self._steps = steps
+
+        if not isinstance(steps, dict):
+            raise TypeError('Must be dict of steps: {key1: step, ... key2: step}')
+
+        for step in steps.values():
+            if not isinstance(step, Step):
+                raise TypeError('Must be dict of steps: {key1: step, ... key2: step}')
+
+    def __repr__(self):
+        items_repr = ', '.join(f'{repr(key)}: {repr(s)}' for key, s in self._steps.items())
+        lbrace, rbrace = '{', '}'
+        return f'{self.__class__.__name__}({lbrace}{items_repr}{rbrace})'
+
+    def _raw_tree(self, **kwargs):
+        start_row  = f'{self.__class__.__name__}({len(self._steps)})'
+        rows = [start_row]
+        if not self._steps:
+            return rows
+
+        steps = tuple(self._steps.items())
+
+        last_step = steps[-1]
+        chain = steps[:-1]
+
+        center_pos = round(len(self.__class__.__name__) / 2)
+        spaces = ' ' * (center_pos - 1)
+        unders = '__'
+        sep = '|'
+
+        for key, step in chain:
+            _rows = step._raw_tree(**kwargs)
+            rows.append(f'{spaces}{sep}{unders}{repr(key)}: {_rows[0]}')
+            if len(_rows) > 1:
+                rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+                rows.append(f'{spaces}{sep}')
+
+        key = last_step[0]
+        _rows = last_step[1]._raw_tree(**kwargs)
+        rows.append(f'{spaces}{sep}{unders}{repr(key)}: {_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
+
+        return rows
+
+    def get_str_tree(self, **kwargs):
+        '''Internal structure of chain'''
+        return '\n'.join(self._raw_tree(**kwargs))
+
+    def make(self, value, **kwargs):
+        '''Main method of Step'''
+        iterables = tuple([key, iter(step.make(value, **kwargs))]
+                          for key, step in self._steps.items())
+
+        sentinel = object()
+        while True:
+            result_dict = {key: val
+                           for key, val in ([key, next(it, sentinel)] for key, it in iterables)
+                           if val is not sentinel}
+            
+            if len(result_dict) > 0:
+                yield result_dict
+            else:
+                return
+
+#+end_src
+
+***** :: class: *SetStep(Step)*
+
+#+name: class-set-step
+#+begin_src python
+
+class SetStep(Step):
+    def __init__(self, steps):
+        self._steps = steps
+
+        if not isinstance(steps, set):
+            raise TypeError('Must be set of steps')
+
+        for step in steps:
+            if not isinstance(step, Step):
+                raise TypeError('Must be set of steps')
+
+    def __repr__(self):
+        items_repr = ', '.join((repr(step) for step in self._steps))
+        lbrace, rbrace = '{', '}'
+        return f'{self.__class__.__name__}({lbrace}{items_repr}{rbrace})'
+
+    def _raw_tree(self, **kwargs):
+        steps = tuple(self._steps)
+        start_row = f'{self.__class__.__name__}({len(steps)})'
+
+        rows = [start_row]
+        if not steps:
+            return rows
+
+        last_step = steps[-1]
+        chain = steps[:-1]
+
+        center_pos = round(len(self.__class__.__name__) / 2)
+        spaces = ' ' * (center_pos - 1)
+        unders = '__'
+        sep = '|'
+
+        for step in chain:
+            _rows = step._raw_tree(**kwargs)
+            rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+            if len(_rows) > 1:
+                rows.extend(f'{spaces}{sep}  {row}' for row in _rows[1:])
+                rows.append(f'{spaces}{sep}')
+
+        _rows = last_step._raw_tree(**kwargs)
+        rows.append(f'{spaces}{sep}{unders}{_rows[0]}')
+        rows.extend(f'{spaces} {spaces}{row}' for row in _rows[1:])
+
+        return rows
+
+    def get_str_tree(self, **kwargs):
+        '''Internal structure of chain'''
+        return '\n'.join(self._raw_tree(**kwargs))
+
+    def make(self, value, **kwargs):
+        '''Main method of Step'''
+        iterables = tuple(iter(step.make(value, **kwargs))
+                          for step in self._steps)
+
+        sentinel = object()
+        while True:
+            result_set = {val
+                          for val in (next(it, sentinel) for it in iterables)
+                          if val is not sentinel}
+            
+            if len(result_set) > 0:
+                yield result_set
+            else:
+                return
+
+#+end_src
+
+*** ✔tangle :: *__init__.py*
+
+#+begin_src python :noweb yes :tangle monapy/__init__.py :mkdirp yes
+
+# -*- coding: utf-8 -*-
+
+'''
+<<description>>
+'''
+
+import sys
+
+if sys.version_info.major < 3 or sys.version_info.minor < 6:
+    raise ImportError('Python < 3.6 is unsupported.')
+
+from .binding import Binder
+from .step import Step
+
+__title__ = 'Monapy'
+__description__ = '<<description>>'
+__version__ = '<<version>>'
+__author__ = 'Andriy Stremeluk'
+__license__ = 'MIT'
+__copyright__ = '<<copyright>>'
+
+__all__ = ['Step', 'Binder']
+
+#+end_src
+
+*** ✔tangle :: *binding.py*
+**** ✔tangle :: Build *binding.py*
+
+#+begin_src python :noweb yes :tangle monapy/binding.py :mkdirp yes
+
+<<binding-imports>>
+<<class-binder>>
+
+#+end_src
+
+**** :: *Imports*
+
+#+name: binding-imports
+#+begin_src python
+
+# -*- coding: utf-8 -*-
+''' Simple monad implementation. '''
+
+from itertools import chain
+from functools import partial
+from functools import reduce
+
+#+end_src
+
+**** :: class: *Binder*
+
+#+name: class-binder
+#+begin_src python
+
+class Binder:
+    '''
+    Binder is binding functions to chain.
+    The result of the previous function is passed to a next function as positional argument.
+    Right arrows bind functions into the chain.
+    Left arrows set positional argument for last function in chain.
+    ##### Examples:
+        >>> from monapy import Binder
+        >>> binder = Binder() >> range >> map << ( lambda i: i * 10 )
+        >>> list( binder( 10 ) )
+        [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
+        >>> binder >> filter << ( lambda i: not i % 20 ) >> list
+        >>> binder( 10 )
+        [0, 20, 40, 60, 80]
+    '''
+    def __init__(self, *functions):
+        self._func_chain = list(functions)
+
+    def __rshift__(self, obj):
+        ''' call to Binder.bind '''
+        return self.bind(obj)
+
+    def __lshift__(self, obj):
+        ''' call to Binder.lbind '''
+        return self.lbind(obj)
+
+    def __call__(self, *args, **kwargs):
+        ''' call to Binder.call '''
+        return self.call(*args, **kwargs)
+
+    def bind(self, obj):
+        ''' bind a function (callable object) with last function in the chain '''
+        if not hasattr(obj, '__call__'):
+            raise TypeError('Must be callable')
+
+        functions = self._func_chain[:]
+        functions.append(obj)
+        return Binder(*functions)
+
+    def lbind(self, obj):
+        ''' set positional argument for last function in the chain '''
+        functions = self._func_chain[:]
+        _func = functions.pop()
+        functions.append(partial(_func, obj))
+        return Binder(*functions)
+
+    def call(self, *args, **kwargs):
+        ''' call to functions chain '''
+        if not self._func_chain:
+            return
+        
+        first_func = self._func_chain[0]
+        other_funcs = self._func_chain[1:]
+        return reduce(lambda val, func: func(val),
+                      chain([first_func(*args, **kwargs)], other_funcs))
+
+#+end_src
+
+** ✔tangle :: test
+*** ✔tangle :: *test.py*
+
+#+begin_src python :tangle test/test.py :mkdirp yes
+
+# -*- coding: utf-8 -*-
+
+import pytest
+
+from monapy import Binder
+from monapy import Step
+
+
+class Iters(Step):
+  def __init__(self, iterable, repeat=1):
+    self._iterable = iterable
+    self._repeat = repeat
+
+  def make(self, value):
+    for _ in range(self._repeat):
+      yield from self._iterable
+
+
+class ReturnEquals(Step):
+  def __init__(self, values=[]):
+    self._values = values
+
+  def make(self, value):
+    if value in self._values:
+      yield value
+
+
+class Repeat(Step):
+  def __init__(self, value, repeats=1):
+    self._val = value
+    self._rep = repeats
+
+  def make(self, value):
+    for _ in range(self._rep):
+      yield self._val
+
+
+class RepeatOnce(Step):
+  def __init__(self, value, repeats=1):
+    self._val = value
+    self._rep = repeats
+    self._ret = True
+
+  def make(self, value):
+    if not self._ret:
+      return
+    for _ in range(self._rep):
+      yield self._val
+    self._ret = False
+
+
+def test_binder():
+  b = Binder() >> range << 1 >> map << (lambda i: i * 10) >> list
+        
+  assert b(5) == [10, 20, 30, 40]
+
+
+def test_step():
+  step = Repeat('t', 2)
+
+  print(step.get_str_tree())
+
+  result = tuple(step.make(0))
+
+  assert result == ('t',) * 2
+
+
+def test_step_chain():
+  step = Repeat('f', 2) >> Repeat('l', 3)
+
+  print(step.get_str_tree())
+
+  result = tuple(step.make(0))
+
+  assert result == ('l',) * 6
+
+
+def test_loop_step():
+  step = Repeat('1', 2) >> Repeat('2') << RepeatOnce('3') << RepeatOnce('4', 2)
+
+  print(step.get_str_tree())
+
+  result = tuple(step.make(0))
+
+  assert result == ('2',) * 5
+
+
+def test_union_step():
+  step = ~(Repeat('1', 2) >> Repeat('2')) << RepeatOnce('3')
+  step1 = ~(Repeat('1', 2) >> Repeat('2')) << RepeatOnce('3') >> Repeat('4')
+
+  print(step.get_str_tree())
+  print(step1.get_str_tree())
+
+  result = tuple(step.make(0))
+  result1 = tuple(step1.make(0))
+
+  assert result == ('2',) * 4
+  assert result1 == ('4',) * 4
+
+
+def test_or_chain():
+  step = Iters('abcdefghjk') >> (ReturnEquals('afzk') | ReturnEquals('bateh') | ReturnEquals('cbdjx'))
+
+  print(step.get_str_tree())
+        
+  result = tuple(step.make(0))
+
+  assert result == tuple('abcdefhjk')
+
+
+def test_tuple_step():
+  step = Iters('abcdefghjk') >> (ReturnEquals('abc'), ReturnEquals('ab'), ReturnEquals('a'))
+
+  print(step.get_str_tree())
+
+  result = tuple(step.make(0))
+
+  assert result == (('a',)*3,)
+
+
+def test_list_step():
+  step = Iters('abcdefghjk') >> [ReturnEquals('abc'), ReturnEquals('ab'), ReturnEquals('a')]
+
+  print(step.get_str_tree())
+
+  result = tuple(step.make(0))
+
+  assert result == (['a']*3, ['b']*2, ['c'])
+
+
+def test_dict_step():
+  step = Iters('abcdefghjk') >> {
+    'one': ReturnEquals('abc'),
+    'two' :ReturnEquals('ab'),
+    'three': ReturnEquals('a')
+  }
+
+  print(step.get_str_tree())
+
+  result = tuple(step.make(0))
+
+  assert result == (
+    {'one': 'a', 'two': 'a', 'three': 'a'},
+    {'one': 'b', 'two': 'b'},
+    {'one': 'c'},
+  )
+
+
+def test_set_step():
+  step = Iters('abcdefghjk') >> {ReturnEquals('abc'), ReturnEquals('ab'), ReturnEquals('a')}
+
+  print(step.get_str_tree())
+
+  result = tuple(step.make(0))
+
+  assert result == ({'a'}, {'b'}, {'c'})
+
+#+end_src
+
+*** ✔tangle :: *pytest.ini*
+
+#+begin_src conf :tangle test/pytest.ini
+
+[pytest]
+pythonpath=..
+
+#+end_src
+
+** ✔tangle :: *.gitignore*
+
+#+begin_src text :tangle .gitignore :mkdirp yes
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+,*.py[cod]
+,*$py.class
+
+# C extensions
+,*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+,*.egg-info/
+.installed.cfg
+,*.egg
+MANIFEST
+
+#+end_src
+
+** ✔tangle :: *LICENSE*
+
+#+begin_src text :noweb yes :tangle LICENSE :mkdirp yes
+
+The MIT License (MIT)
+
+<<copyright>>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+#+end_src
+
+** ✔tangle :: *README.md*
+
+#+begin_src markdown :noweb yes :tangle README.md :mkdirp yes
+
+Monapy
+===
+
+<<description>>
+---
+
+### Binder - simple monad implementation.
+Binder is binding functions to chain.
+The result of the previous function is passed to a next function as positional argument.
+Right arrows bind functions into the chain.
+Left arrows set positional argument for last function in chain.
+##### Examples:
+```python
+>>> from monapy import Binder
+>>> binder = Binder() >> range >> map << ( lambda i: i * 10 )
+>>> list( binder( 10 ) )
+[0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
+>>> binder >> filter << ( lambda i: not i % 20 ) >> list
+>>> binder( 10 )
+[0, 20, 40, 60, 80]
+```
+
+### Package Step
+Step is a functional unit, a step is binding with other step for making chain steps.
+Class Step must be implemented, method 'make' is main that take value and generate iterator.
+First step take value and generating iterator,
+that iteratively by one values is passed other step,
+this process continue while to the last step in the chain.
+Bindings define which step the value is passed to.
+Steps may be bind by next binding methods: bind, loop_bind, or_bind.
+
+#### Bind
+The values (in iterator) is passed to the next step.
+##### Examples:
+```python
+>>> from monapy import Step
+>>> chain1 = Step() >> Step()
+>>> chain2 = Step().bind( Step() )
+>>> chain3 = StepChain( [ Step(), Step() ] )
+>>> chain4 = Step() >> Step() >> Step()
+```
+
+#### Loop
+This bind make loop, first step's values (in iterator) is passed to second step and out of this chain,
+second step by each value is generating values (iterator),
+and this values is passed to first step, then all repeat until empty iterator from second step.
+```
+(iter) --> value ------> First Step --> (iter) --> value ------>
+                    ^                                       |
+                    |                                       |
+                     -- value <-- (iter) <-- Second Step <--
+```
+##### Examples:
+```python
+>>> from monapy import Step
+>>> chain1 = Step() << Step()
+>>> chain2 = Step().loop( Step() )
+>>> chain3 = LoopStep( Step(), Step() )
+```
+
+#### Or-Bind
+It like 'or' logical expression, a first non-empty iterator is passed to out of this chain.
+##### Examples:
+```python
+>>> from monapy import Step
+>>> chain1 = Step() | Step()
+>>> chain2 = Step().or_bind( Step() )
+>>> chain3 = OrChain( [ Step(), Step() ] )
+>>> chain4 = Step() | Step() | Step()
+```
+
+#### Internal structure of chain
+To view, how steps binded, call 'tree' method and print result.
+##### Examples:
+```python
+>>> chain = Step() >> ~( Step() >> Step() >> Step() ) << Step() >> ( Step() | Step() | Step() )
+>>> print( chain.tree() )
+StepChain(3)
+   |__Step()
+   |__LoopStep()
+   |     |__StepChain(3)
+   |     |     |__Step()
+   |     |     |__Step()
+   |     |     |__Step()
+   |     |
+   |     |_<< Step()
+   |
+   |__OrChain(3)
+          |__Step()
+          |__Step()
+          |__Step()
+```
+##### Detailed tree
+```python
+>>> print( chain.tree( full=True ) )
+StepChain(3)
+   |__Step()
+   |__LoopStep()
+   |     |__UnitedSteps()
+   |     |     |__StepChain(3)
+   |     |            |__Step()
+   |     |            |__Step()
+   |     |            |__Step()
+   |     |
+   |     |_<< Step()
+   |
+   |__OrChain(3)
+          |__Step()
+          |__Step()
+          |__Step()
+```
+
+#### Combining steps
+Sometimes need to make a separate sub-chain, for this exists '~' expression.
+##### Examples:
+```python
+>>> from monapy import Step
+>>> chain1 = ~( Step() >> Step() >> Step() ) << Step()
+>>> print( chain1.tree() )
+LoopStep()
+   |__StepChain(3)
+   |     |__Step()
+   |     |__Step()
+   |     |__Step()
+   |
+   |_<< Step()
+
+>>> chain2 = Step() >> Step() >> Step() << Step()
+>>> print( chain2.tree() )
+StepChain(3)
+   |__Step()
+   |__Step()
+   |__LoopStep()
+          |__Step()
+          |_<< Step()
+```
+
+#### Show UnitedSteps in tree
+```python
+>>> print( chain1.tree( show_union=True ) )
+LoopStep()
+   |__UnitedSteps()
+   |     |__StepChain(3)
+   |            |__Step()
+   |            |__Step()
+   |            |__Step()
+   |
+   |_<< Step()
+```
+
+#### Run chain
+For run chain call 'make' method, that return iterator.
+##### Examples:
+```python
+>>> from monapy import Step
+>>> chain = Step() >> Step() << Step() >> ( Step() | Step() | Step() )
+>>> for val in chain.make( value ):
+>>>     print( val )
+
+>>> for val in chain( value ):
+>>>     print( val )
+```
+
+#### Packing values in standard data structures
+4 structures supported: tuple, list, dict, set.
+Values pack the corresponding steps,
+to create this step need bind the chain with corresponding structure of steps,
+or call a corresponding class.
+From each step, one value is taken and pack into structure.
+##### Pack in tuple
+> It's like 'zip' function,
+> if every step returns a value then those values ​​are packed into a tuple,
+> otherwise no packing happens and values ​​aren't returned.
+##### Examples:
+```python
+>>> from monapy import Step
+>>> chain1 = Step() >> ( Step(), Step(), Step() )
+>>> chain2 = TupleStep( ( Step(), Step(), Step() ) )
+>>> chain3 = to_step( ( Step(), Step(), Step() ) )
+```
+##### Pack in list
+##### Examples:
+```python
+>>> from monapy import Step
+>>> chain1 = Step() >> [ Step(), Step(), Step() ]
+>>> chain2 = ListStep( [ Step(), Step(), Step() ] )
+>>> chain3 = to_step( [ Step(), Step(), Step() ] )
+```
+##### Pack in dict
+##### Examples:
+```python
+>>> from monapy import Step
+>>> chain1 = Step() >> { 'key1': Step(), 'key2': Step(), 'key3': Step() }
+>>> chain2 = DictStep( { 'key1': Step(), 'key2': Step(), 'key3': Step() } )
+>>> chain3 = to_step( { 'key1': Step(), 'key2': Step(), 'key3': Step() } )
+```
+##### Pack in set
+##### Examples:
+```python
+>>> from monapy import Step
+>>> chain1 = Step() >> { Step(), Step(), Step() }
+>>> chain2 = SetStep( { Step(), Step(), Step() } )
+>>> chain3 = to_step( { Step(), Step(), Step() } )
+```
+
+#### Step class implementation
+Class Step has two methods to implement,
+it's 'make' and 'make_all'.
+The 'make' method takes a value and generates an iterator,
+that is passed to the next step.
+This method takes one positional argument to get the value,
+and also accepts named arguments,
+that are used to pass settings for all steps in the chain.
+The method 'make_all' is taking an iterator of values that it passes to the 'make' method,
+it could be used for paralleling.
+
+#+end_src
+
+** ✔tangle :: *setup.py*
+
+Build distributions: ~python setup.py sdist bdist_wheel~
+
+#+begin_src python :noweb yes :tangle setup.py :mkdirp yes
+
+# -*- coding: utf-8 -*-
+
+import setuptools
+
+with open('README.md') as f:
+    long_description = f.read()
+
+setuptools.setup(
+    name='monapy',
+    version='<<version>>',
+    author='Andriy Stremeluk',
+    author_email='astremeluk@gmail.com',
+    description='<<description>>',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    license='MIT',
+    url='https://github.com/andriystr/Monapy',
+    packages=setuptools.find_packages(exclude=['test*']),
+    classifiers=[
+        'Programming Language :: Python :: 3.6',
+        'License :: OSI Approved :: MIT License',
+        'Operating System :: OS Independent'
+    ],
+    python_requires='>=3.6'
+)
+
+#+end_src
+

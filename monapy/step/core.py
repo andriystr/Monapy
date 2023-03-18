@@ -74,17 +74,15 @@ class Step:
     def _raw_tree(self, **kwargs):
         return [f'{self.__class__.__name__}()']
 
-    def tree(self, **kwargs):
+    def get_str_tree(self, **kwargs):
         '''Internal structure of chain'''
         return '\n'.join(self._raw_tree(**kwargs))
 
     def make_all(self, iterable, **kwargs):
         '''Method must be implement'''
-        return (
-            value
-            for val in iterable
-            for value in self.make(val, **kwargs)
-        )
+        return (value
+                for val in iterable
+                for value in self.make(val, **kwargs))
 
     def make(self, value = object(), **kwargs):
         '''Main method of Step, must be implement'''
@@ -147,7 +145,7 @@ class StepChain(Step):
 
         return rows
 
-    def tree(self, **kwargs):
+    def get_str_tree(self, **kwargs):
         '''Internal structure of chain'''
         return '\n'.join(self._raw_tree(**kwargs))
 
@@ -156,12 +154,8 @@ class StepChain(Step):
         if not self._chain:
             return
 
-        iterable = reduce(
-            lambda iterable, step: step.make_all(iterable, **kwargs),
-            chain([[value]], self._chain)
-        )
-        for val in iterable:
-            yield val
+        yield from reduce(lambda iterable, step: step.make_all(iterable, **kwargs),
+                          chain([[value]], self._chain))
 
 
 class LoopStep(Step):
@@ -210,7 +204,7 @@ class LoopStep(Step):
 
         return rows
 
-    def tree(self, **kwargs):
+    def get_str_tree(self, **kwargs):
         '''Internal structure of chain'''
         return '\n'.join(self._raw_tree(**kwargs))
 
@@ -223,10 +217,8 @@ class LoopStep(Step):
             yield val
 
         while True:
-            iterable = reduce(
-                lambda iterable, step: step.make_all(iterable, **kwargs),
-                chain([iterable], [self._loop_step, self._step])
-            )
+            iterable = reduce(lambda iterable, step: step.make_all(iterable, **kwargs),
+                              chain([iterable], [self._loop_step, self._step]))
 
             sentinel = object()
             value = next(iterable, sentinel)
@@ -235,8 +227,7 @@ class LoopStep(Step):
                 return
 
             result, iterable = tee(iterable, 2)
-            for val in result:
-                yield val
+            yield from result
 
 
 class UnitedSteps(Step):
@@ -264,7 +255,7 @@ class UnitedSteps(Step):
         else:
             return self._step._raw_tree(**kwargs)
 
-    def tree(self, **kwargs):
+    def get_str_tree(self, **kwargs):
         '''Internal structure of chain'''
         if kwargs.get('full', False) or kwargs.get('show_united', False):
             return '\n'.join(self._raw_tree(**kwargs))
@@ -322,7 +313,7 @@ class OrChain(Step):
 
         return rows
 
-    def tree(self, **kwargs):
+    def get_str_tree(self, **kwargs):
         '''Internal structure of chain'''
         return '\n'.join(self._raw_tree(**kwargs))
 
@@ -381,16 +372,15 @@ class TupleStep(Step):
 
         return rows
 
-    def tree(self, **kwargs):
+    def get_str_tree(self, **kwargs):
         '''Internal structure of chain'''
         return '\n'.join(self._raw_tree(**kwargs))
 
     def make(self, value, **kwargs):
         '''Main method of Step'''
-        iterables = tuple(
-            iter(step.make(value, **kwargs))
-            for step in self._steps
-        )
+        iterables = tuple(iter(step.make(value, **kwargs))
+                          for step in self._steps)
+        
         return (tuple(it) for it in zip(*iterables))
 
 
@@ -437,25 +427,21 @@ class ListStep(Step):
 
         return rows
 
-    def tree(self, **kwargs):
+    def get_str_tree(self, **kwargs):
         '''Internal structure of chain'''
         return '\n'.join(self._raw_tree(**kwargs))
 
     def make(self, value, **kwargs):
         '''Main method of Step'''
-        iterables = tuple(
-            iter(step.make(value, **kwargs))
-            for step in self._steps
-        )
+        iterables = tuple(iter(step.make(value, **kwargs))
+                          for step in self._steps)
 
         sentinel = object()
         while True:
-            result_list = [
-                val
-                for val in
-                (next(it, sentinel) for it in iterables)
-                if val is not sentinel
-            ]
+            result_list = [val
+                           for val in (next(it, sentinel) for it in iterables)
+                           if val is not sentinel]
+            
             if len(result_list) > 0:
                 yield result_list
             else:
@@ -508,28 +494,21 @@ class DictStep(Step):
 
         return rows
 
-    def tree(self, **kwargs):
+    def get_str_tree(self, **kwargs):
         '''Internal structure of chain'''
         return '\n'.join(self._raw_tree(**kwargs))
 
     def make(self, value, **kwargs):
         '''Main method of Step'''
-        iterables = tuple(
-            (
-                key,
-                iter(step.make(value, **kwargs))
-            )
-            for key, step in self._steps.items()
-        )
+        iterables = tuple([key, iter(step.make(value, **kwargs))]
+                          for key, step in self._steps.items())
 
         sentinel = object()
         while True:
-            result_dict = {
-                key: val
-                for key, val in
-                ((key, next(it, sentinel)) for key, it in iterables)
-                if val is not sentinel
-            }
+            result_dict = {key: val
+                           for key, val in ([key, next(it, sentinel)] for key, it in iterables)
+                           if val is not sentinel}
+            
             if len(result_dict) > 0:
                 yield result_dict
             else:
@@ -581,25 +560,21 @@ class SetStep(Step):
 
         return rows
 
-    def tree(self, **kwargs):
+    def get_str_tree(self, **kwargs):
         '''Internal structure of chain'''
         return '\n'.join(self._raw_tree(**kwargs))
 
     def make(self, value, **kwargs):
         '''Main method of Step'''
-        iterables = tuple(
-            iter(step.make(value, **kwargs))
-            for step in self._steps
-        )
+        iterables = tuple(iter(step.make(value, **kwargs))
+                          for step in self._steps)
 
         sentinel = object()
         while True:
-            result_set = {
-                val
-                for val in
-                (next(it, sentinel) for it in iterables)
-                if val is not sentinel
-            }
+            result_set = {val
+                          for val in (next(it, sentinel) for it in iterables)
+                          if val is not sentinel}
+            
             if len(result_set) > 0:
                 yield result_set
             else:
